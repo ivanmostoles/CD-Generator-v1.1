@@ -1,0 +1,2 @@
+discovery_model,discovery_sys_id,norm_publisher,norm_publisher_sys_id,norm_product,norm_product_sys_id,publisher,product,software_install,software_install_sys_id,version1,license_sys_id
+3D Analyst 10.6,df5b4bb0bb4c00109c5f1272dbdb75f7,ESRI,a91e0374bb4c00109c5f1272dbdb752c,ArcGIS 3D Analyst,0ffcd0370b1722000725c84463673a26,ARCGIS,3D Analyst,3D Analyst,1f5b4bb0bb4c00109c5f1272dbdb75f6,10.6,a6860313009d090641355a0a6100a86e
