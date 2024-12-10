@@ -7,7 +7,6 @@ import hashlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-
 # Helper function to load data from CSV
 def load_data_from_csv(file_name):
     try:
@@ -17,19 +16,28 @@ def load_data_from_csv(file_name):
         st.error(f"Error loading CSV file: {e}")
         return []
 
-
 # Load data from predefined CSV files
 DISCOVERY_MODELS = load_data_from_csv("discovery.csv")
+USER_NAMES = load_data_from_csv("user.csv")
+GROUP_NAMES = load_data_from_csv("group.csv")
+LICENSE_SERVER_VALUES = load_data_from_csv("license_server.csv")
+LICENSE_TYPE_VALUES = load_data_from_csv("license_type.csv")
 
 # Ensure data is loaded
 if not DISCOVERY_MODELS:
     st.error("No discovery models found. Ensure the 'discovery.csv' file exists and contains valid data.")
-
+if not USER_NAMES:
+    st.error("No user names found. Ensure the 'user.csv' file exists and contains valid data.")
+if not GROUP_NAMES:
+    st.error("No group names found. Ensure the 'group.csv' file exists and contains valid data.")
+if not LICENSE_SERVER_VALUES:
+    st.error("No license server found. Ensure the 'license_server.csv' file exists and contains valid data.")
+if not LICENSE_TYPE_VALUES:
+    st.error("No license type found. Ensure the 'license_type.csv' file exists and contains valid data.")
 
 # Helper to generate unique hash
 def generate_unique_hash():
     return hashlib.md5(str(random.random()).encode()).hexdigest()
-
 
 # Function to generate a concurrent record with extended parameters
 def generate_concurrent_record(record_data, discovery):
@@ -49,17 +57,40 @@ def generate_concurrent_record(record_data, discovery):
     ET.SubElement(concurrent_usage, "usage_date").text = record_data["date"]
     return concurrent_usage
 
-
-# Function to generate denial records
-def generate_denial_record(record_data):
-    denial = ET.Element("denial_record")
-    ET.SubElement(denial, "date").text = record_data["date"]
-    ET.SubElement(denial, "value").text = str(record_data["value"])
+# Extended function to generate denial records
+def generate_denial_record_extended(record_data, discovery, user, group, license_server, license_type):
+    denial = ET.Element("samp_eng_app_denial", action="INSERT_OR_UPDATE")
+    ET.SubElement(denial, "additional_key")
+    ET.SubElement(denial, "computer", display_value=user["computer_name"]).text = user["computer_sys_id"]
+    ET.SubElement(denial, "denial_date").text = record_data["date"]  # Use "date" as "denial_date"
+    ET.SubElement(denial, "denial_id").text = f"Denial {record_data['record_num']}"  # Unique denial ID
+    ET.SubElement(denial, "discovery_model", display_value=discovery["discovery_model"]).text = discovery["discovery_sys_id"]
+    ET.SubElement(denial, "group", display_value=group["group"]).text = group["group_sys_id"]
+    ET.SubElement(denial, "is_product_normalized").text = "true"
+    ET.SubElement(denial, "last_denial_time").text = datetime.now().strftime("%Y-%m-%d %H:%M")
+    ET.SubElement(denial, "license_server", display_value=license_server["license_server"]).text = license_server["license_server_sys_id"]
+    ET.SubElement(denial, "license_type", display_value=license_type["license_type"]).text = license_type["license_type_sys_id"]
+    ET.SubElement(denial, "norm_product", display_value=discovery["norm_product"]).text = discovery["norm_product_sys_id"]
+    ET.SubElement(denial, "norm_publisher", display_value=discovery["norm_publisher"]).text = discovery["norm_publisher_sys_id"]
+    ET.SubElement(denial, "product").text = discovery["product"]
+    ET.SubElement(denial, "publisher").text = discovery["publisher"]
+    ET.SubElement(denial, "source").text = "OpeniT"
+    ET.SubElement(denial, "sys_created_by").text = "admin"
+    ET.SubElement(denial, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(denial, "sys_domain").text = generate_unique_hash()
+    ET.SubElement(denial, "sys_domain_path").text = "/"
+    ET.SubElement(denial, "sys_id").text = generate_unique_hash()
+    ET.SubElement(denial, "sys_mod_count").text = str(random.randint(1, 100))
+    ET.SubElement(denial, "sys_updated_by").text = "admin"
+    ET.SubElement(denial, "sys_updated_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(denial, "total_denial_count").text = str(record_data["value"])  # Use "value" as "total_denial_count"
+    ET.SubElement(denial, "user", display_value=user["user"]).text = user["user_sys_id"]
+    ET.SubElement(denial, "version").text = "2020"
+    ET.SubElement(denial, "workstation", display_value=user["workstation"]).text = user["workstation_sys_id"]
     return denial
 
-
 # Streamlit app
-st.title("CD Generator with Extended Parameters")
+st.title("CD Generator")
 
 # Input Section
 st.header("Input Parameters")
@@ -81,21 +112,19 @@ if generate_button:
     concurrent_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     # Denial Records
-    denial_root = ET.Element("denial_records")
-    denial_count = random.randint(range_start, range_end)
-    denial_generated = 0
+    denial_root = ET.Element("unload")
+    denial_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     increment_value = quantity // num_records
     value = increment_value
-
     record_list = []
     phase = "increment"
+    denial_generated = 0
 
     for day_offset in range(total_days):
         current_date = (start_date + timedelta(days=day_offset)).strftime("%Y-%m-%d")
 
         if phase == "increment":
-            # Incremental records
             record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
             value += increment_value
             if value >= quantity:
@@ -104,50 +133,68 @@ if generate_button:
                 denial_generated = 0
 
         elif phase == "denial":
-            # Denial and peak records
+            if denial_generated == 0:
+                denial_count = random.randint(range_start, range_end)
+
             if denial_generated < denial_count:
-                denial_root.append(generate_denial_record({"date": current_date, "value": increment_value}))
+                discovery = random.choice(DISCOVERY_MODELS)
+                user = random.choice(USER_NAMES)
+                group = random.choice(GROUP_NAMES)
+                license_server = random.choice(LICENSE_SERVER_VALUES)
+                license_type = random.choice(LICENSE_TYPE_VALUES)
+
+                denial_root.append(generate_denial_record_extended(
+                    {"date": current_date, "value": increment_value, "record_num": len(record_list) + 1},
+                    discovery, user, group, license_server, license_type
+                ))
+
                 record_list.append({"record_num": len(record_list) + 1, "value": quantity, "date": current_date})
                 denial_generated += 1
+
+                if denial_generated < denial_count:
+                    current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
             else:
                 phase = "decrement"
                 value -= increment_value
 
         elif phase == "decrement":
-            # Decremental records
             record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
             if value <= quantity / 2:
-                # Transition back to increment phase, starting from the last valid value
                 phase = "increment"
                 value += increment_value
             else:
                 value -= increment_value
+                current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
     # Generate Concurrent XML Records
     for record in record_list:
-        discovery = random.choice(DISCOVERY_MODELS)
-        concurrent_root.append(generate_concurrent_record(record, discovery))
+        for product in ["AutoCAD Architecture", "ArcGIS 3D Analyst", "Advanced Meshing"]:
+        # Modify the discovery model to match the product
+            discovery = {
+                "norm_product": product,
+                "license_sys_id": f"License_{product.replace(' ', '_')}"  # Example license ID generation
+            }
+            concurrent_root.append(generate_concurrent_record(record, discovery))
 
     # Convert XML trees to strings
     concurrent_xml_data = ET.tostring(concurrent_root, encoding="utf-8").decode("utf-8")
     denial_xml_data = ET.tostring(denial_root, encoding="utf-8").decode("utf-8")
 
-    # Store XML data in session state for persistence
     st.session_state["concurrent_xml"] = concurrent_xml_data
     st.session_state["denial_xml"] = denial_xml_data
 
     st.success("Records Generated Successfully!")
 
-# Helper function to parse Concurrent XML
+
 def parse_concurrent_xml(concurrent_xml_data):
     tree = ET.ElementTree(ET.fromstring(concurrent_xml_data))
     root = tree.getroot()
     dates = []
     values = []
     for record in root.findall("samp_eng_app_concurrent_usage"):
-        date = record.find("usage_date").text
+        date_str = record.find("usage_date").text
         value = int(record.find("concurrent_usage").text)
-        dates.append(date)
+        dates.append(datetime.strptime(date_str, "%Y-%m-%d"))  # Convert to datetime object
         values.append(value)
     return dates, values
 
@@ -157,10 +204,10 @@ def parse_denial_xml(denial_xml_data):
     root = tree.getroot()
     dates = []
     values = []
-    for record in root.findall("denial_record"):
-        date = record.find("date").text
-        value = int(record.find("value").text)
-        dates.append(date)
+    for record in root.findall("samp_eng_app_denial"):
+        date_str = record.find("denial_date").text
+        value = int(record.find("total_denial_count").text)
+        dates.append(datetime.strptime(date_str, "%Y-%m-%d"))  # Convert to datetime object
         values.append(value)
     return dates, values
 
@@ -183,9 +230,13 @@ if "concurrent_xml" in st.session_state and "denial_xml" in st.session_state:
     # Plot the Denial Records (Bar Graph)
     ax.bar(denial_dates, denial_values, label="Denial Records", color="red", alpha=0.6)
 
+    # Add a threshold line for the peak value (e.g., 100)
+    threshold_value = max(concurrent_values)  # Assuming the threshold is the peak value
+    ax.axhline(y=threshold_value, color="orange", linestyle="--", linewidth=2, label=f"Peak ({threshold_value})")
+
     # Format the x-axis to show dates properly
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=5))  # Adjust interval as needed
     plt.xticks(rotation=45, ha="right")
 
     # Add labels, title, and legend
@@ -196,6 +247,7 @@ if "concurrent_xml" in st.session_state and "denial_xml" in st.session_state:
 
     # Display the graph in Streamlit
     st.pyplot(fig)
+
 
 # Display Concurrent XML
 if "concurrent_xml" in st.session_state:

@@ -17,7 +17,7 @@ def load_data_from_csv(file_name):
         return []
 
 # Load data from predefined CSV files
-DISCOVERY_MODELS = load_data_from_csv("discovery2.csv")
+DISCOVERY_MODELS = load_data_from_csv("discovery.csv")
 USER_NAMES = load_data_from_csv("user.csv")
 GROUP_NAMES = load_data_from_csv("group.csv")
 LICENSE_SERVER_VALUES = load_data_from_csv("license_server.csv")
@@ -38,6 +38,64 @@ if not LICENSE_TYPE_VALUES:
 # Helper to generate unique hash
 def generate_unique_hash():
     return hashlib.md5(str(random.random()).encode()).hexdigest()
+
+# Function to generate three distinct numbers with constraints
+def generate_distinct_numbers_with_constraints(total_sum, max_gap=5):
+    if total_sum < 3:
+        raise ValueError("The total sum must be at least 3 to generate three distinct numbers.")
+    
+    while True:
+        num1 = random.randint(1, total_sum - 2)
+        num2 = random.randint(1, total_sum - num1 - 1)
+        num3 = total_sum - num1 - num2
+        numbers = [num1, num2, num3]
+        numbers.sort()
+        if (len(set(numbers)) == 3 and all(n > 0 for n in numbers) and 
+            numbers[2] - numbers[0] <= max_gap):
+            return tuple(numbers)
+        
+# Function to generate a license XML record
+def generate_license_xml(discovery, quantity):
+    user = random.choice(USER_NAMES)
+    group = random.choice(GROUP_NAMES)
+    license_server = random.choice(LICENSE_SERVER_VALUES)
+    license_type = random.choice(LICENSE_TYPE_VALUES)
+    
+    incremented_date = datetime.now().replace(year=datetime.now().year + 10)
+    version_raw = discovery.get("version", "Unknown")
+    try:
+        # Convert to float and then int if it's a whole number
+        version = str(int(float(version_raw))) if float(version_raw).is_integer() else str(version_raw)
+    except ValueError:
+        # If conversion fails, use the raw value as a fallback
+        version = str(version_raw)
+
+    license = ET.Element("samp_eng_app_license", action="INSERT_OR_UPDATE")
+    ET.SubElement(license, "active").text = "true"
+    ET.SubElement(license, "end_date").text = incremented_date.strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "eng_software_install", display_value=discovery["software_install"]).text = discovery["software_install_sys_id"]
+    ET.SubElement(license, "is_product_normalized").text = "true"
+    ET.SubElement(license, "license_id").text = generate_unique_hash()
+    ET.SubElement(license, "license_server", display_value=license_server["license_server"]).text = license_server["license_server_sys_id"]
+    ET.SubElement(license, "license_type", display_value=license_type["license_type"]).text = license_type["license_type_sys_id"]
+    ET.SubElement(license, "norm_product", display_value=discovery["norm_product"]).text = discovery["norm_product_sys_id"]
+    ET.SubElement(license, "norm_publisher", display_value=discovery["norm_publisher"]).text = discovery["norm_publisher_sys_id"]
+    ET.SubElement(license, "parent_id").text = ""
+    ET.SubElement(license, "product").text = discovery["product"]
+    ET.SubElement(license, "publisher").text = discovery["publisher"]
+    ET.SubElement(license, "quantity").text = str(int(quantity))   #change
+    ET.SubElement(license, "source").text = "OpeniT"
+    ET.SubElement(license, "start_date").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "sys_created_by").text = "admin"
+    ET.SubElement(license, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "sys_domain").text = generate_unique_hash()
+    ET.SubElement(license, "sys_domain_path").text = "/"
+    ET.SubElement(license, "sys_id").text = generate_unique_hash()
+    ET.SubElement(license, "sys_mod_count").text = str(random.randint(1, 100))
+    ET.SubElement(license, "sys_updated_by").text = "admin"
+    ET.SubElement(license, "sys_updated_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "version").text = version
+    return license
 
 # Function to generate a concurrent record with extended parameters
 def generate_concurrent_record(record_data, discovery):
@@ -103,7 +161,6 @@ generate_button = st.button("Generate Records")
 
 # Generate Records
 if generate_button:
-    # Initialization
     start_date = date_range[0]
     end_date = date_range[1]
     total_days = (end_date - start_date).days + 1
@@ -116,31 +173,31 @@ if generate_button:
     denial_root = ET.Element("unload")
     denial_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
+    # License Records
+    license_root = ET.Element("unload")
+    license_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
     increment_value = quantity // num_records
     value = increment_value
     record_list = []
     phase = "increment"
     denial_generated = 0
 
-    current_date = start_date  # Initialize current_date for the loop
+    for day_offset in range(total_days):
+        current_date = (start_date + timedelta(days=day_offset)).strftime("%Y-%m-%d")
 
-    while current_date <= end_date:
         if phase == "increment":
-            # Add incremental record
-            record_list.append({
-                "record_num": len(record_list) + 1,
-                "value": value,
-                "date": current_date.strftime("%Y-%m-%d")
-            })
+            record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
             value += increment_value
             if value >= quantity:
                 value = quantity
                 phase = "denial"
                 denial_generated = 0
-                denial_count = random.randint(range_start, range_end)  # Predefine denial count for this phase
 
         elif phase == "denial":
-            # Generate Denial and Concurrent Peak Records together
+            if denial_generated == 0:
+                denial_count = random.randint(range_start, range_end)
+
             if denial_generated < denial_count:
                 discovery = random.choice(DISCOVERY_MODELS)
                 user = random.choice(USER_NAMES)
@@ -148,55 +205,76 @@ if generate_button:
                 license_server = random.choice(LICENSE_SERVER_VALUES)
                 license_type = random.choice(LICENSE_TYPE_VALUES)
 
-                # Add denial record
                 denial_root.append(generate_denial_record_extended(
-                    {
-                        "date": current_date.strftime("%Y-%m-%d"),
-                        "value": increment_value,
-                        "record_num": len(record_list) + 1
-                    },
+                    {"date": current_date, "value": increment_value, "record_num": len(record_list) + 1},
                     discovery, user, group, license_server, license_type
                 ))
 
-                # Add concurrent peak record
-                record_list.append({
-                    "record_num": len(record_list) + 1,
-                    "value": quantity,
-                    "date": current_date.strftime("%Y-%m-%d")
-                })
+                record_list.append({"record_num": len(record_list) + 1, "value": quantity, "date": current_date})
                 denial_generated += 1
-            else:
-                # Transition to decrement phase
-                phase = "decrement"
-                value = quantity - increment_value  # Start decrementing below the peak
+
+                if denial_generated >= denial_count:
+                    phase = "decrement"
+                    value -= increment_value
+                else:
+                    # Increment the date only if still in the denial phase
+                    current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
         elif phase == "decrement":
-            # Add decremental record
-            record_list.append({
-                "record_num": len(record_list) + 1,
-                "value": value,
-                "date": current_date.strftime("%Y-%m-%d")
-            })
-            value -= increment_value
-            if value <= quantity / 2:  # Stop at half-threshold
+            record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
+            if value <= quantity / 2:
                 phase = "increment"
-                value += increment_value  # Resume incrementing
-
-        # Increment date consistently at the end of the loop
-        current_date += timedelta(days=1)
-
+                value += increment_value
+            else:
+                value -= increment_value
+                current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
     # Generate Concurrent XML Records
     for record in record_list:
-        discovery = random.choice(DISCOVERY_MODELS)
-        concurrent_root.append(generate_concurrent_record(record, discovery))
+        total_usage = record["value"]
+        base_usage = total_usage // 3
+        remainder = total_usage % 3
+
+        # Distribute the remainder randomly among the three products
+        distributed_usage = [base_usage] * 3
+        for _ in range(remainder):
+            distributed_usage[random.randint(0, 2)] += 1
+
+        # Generate records for each product
+        for i, product in enumerate(["AutoCAD Architecture", "ArcGIS 3D Analyst", "Advanced Meshing"]):
+            # Find the correct discovery model for the product from the CSV
+            discovery = next((model for model in DISCOVERY_MODELS if model["norm_product"] == product), None)
+
+            if discovery:
+                # Update record value for each product
+                product_record = record.copy()
+                product_record["value"] = distributed_usage[i]
+                concurrent_root.append(generate_concurrent_record(product_record, discovery))
+            else:
+                st.error(f"Discovery model not found for product: {product}")
+    
+    # Generate License XML Records
+    st.header("Generating License XML")
+    try:
+        license_quantities = generate_distinct_numbers_with_constraints(quantity, max_gap=5)
+    except ValueError as e:
+        st.error(f"Error generating license quantities: {str(e)}")
+        st.stop()
+
+    for i, qty in enumerate(license_quantities):
+        if i < len(DISCOVERY_MODELS):
+            discovery = DISCOVERY_MODELS[i]
+            license_record = generate_license_xml(discovery, qty)
+            license_root.append(license_record)
 
     # Convert XML trees to strings
+    license_xml_data = ET.tostring(license_root, encoding="utf-8").decode("utf-8")
     concurrent_xml_data = ET.tostring(concurrent_root, encoding="utf-8").decode("utf-8")
     denial_xml_data = ET.tostring(denial_root, encoding="utf-8").decode("utf-8")
 
     st.session_state["concurrent_xml"] = concurrent_xml_data
     st.session_state["denial_xml"] = denial_xml_data
+    st.session_state["license_xml"] = license_xml_data
 
     st.success("Records Generated Successfully!")
 
@@ -204,13 +282,21 @@ if generate_button:
 def parse_concurrent_xml(concurrent_xml_data):
     tree = ET.ElementTree(ET.fromstring(concurrent_xml_data))
     root = tree.getroot()
-    dates = []
-    values = []
+    daily_usage = {}
+
     for record in root.findall("samp_eng_app_concurrent_usage"):
         date_str = record.find("usage_date").text
         value = int(record.find("concurrent_usage").text)
-        dates.append(datetime.strptime(date_str, "%Y-%m-%d"))  # Convert to datetime object
-        values.append(value)
+
+        # Aggregate usage for the same date
+        if date_str in daily_usage:
+            daily_usage[date_str] += value
+        else:
+            daily_usage[date_str] = value
+
+    # Sort dates and convert to lists
+    dates = [datetime.strptime(date, "%Y-%m-%d") for date in sorted(daily_usage.keys())]
+    values = [daily_usage[date.strftime("%Y-%m-%d")] for date in dates]
     return dates, values
 
 # Helper function to parse Denial XML
@@ -283,5 +369,16 @@ if "denial_xml" in st.session_state:
         label="Download Denial XML",
         data=st.session_state["denial_xml"],
         file_name="denial_records.xml",
+        mime="application/xml"
+    )
+
+# Display License XML
+if "license_xml" in st.session_state:
+    st.subheader("License XML")
+    st.code(st.session_state["license_xml"], language="xml")
+    st.download_button(
+        label="Download License XML",
+        data=st.session_state["license_xml"],
+        file_name="license_records.xml",
         mime="application/xml"
     )

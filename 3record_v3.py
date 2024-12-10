@@ -151,11 +151,12 @@ if generate_button:
                 record_list.append({"record_num": len(record_list) + 1, "value": quantity, "date": current_date})
                 denial_generated += 1
 
-                if denial_generated < denial_count:
+                if denial_generated >= denial_count:
+                    phase = "decrement"
+                    value -= increment_value
+                else:
+                    # Increment the date only if still in the denial phase
                     current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-            else:
-                phase = "decrement"
-                value -= increment_value
 
         elif phase == "decrement":
             record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
@@ -168,8 +169,27 @@ if generate_button:
 
     # Generate Concurrent XML Records
     for record in record_list:
-        discovery = random.choice(DISCOVERY_MODELS)
-        concurrent_root.append(generate_concurrent_record(record, discovery))
+        total_usage = record["value"]
+        base_usage = total_usage // 3
+        remainder = total_usage % 3
+
+        # Distribute the remainder randomly among the three products
+        distributed_usage = [base_usage] * 3
+        for _ in range(remainder):
+            distributed_usage[random.randint(0, 2)] += 1
+
+        # Generate records for each product
+        for i, product in enumerate(["AutoCAD Architecture", "ArcGIS 3D Analyst", "Advanced Meshing"]):
+            # Find the correct discovery model for the product from the CSV
+            discovery = next((model for model in DISCOVERY_MODELS if model["norm_product"] == product), None)
+
+            if discovery:
+                # Update record value for each product
+                product_record = record.copy()
+                product_record["value"] = distributed_usage[i]
+                concurrent_root.append(generate_concurrent_record(product_record, discovery))
+            else:
+                st.error(f"Discovery model not found for product: {product}")
 
     # Convert XML trees to strings
     concurrent_xml_data = ET.tostring(concurrent_root, encoding="utf-8").decode("utf-8")
@@ -184,13 +204,21 @@ if generate_button:
 def parse_concurrent_xml(concurrent_xml_data):
     tree = ET.ElementTree(ET.fromstring(concurrent_xml_data))
     root = tree.getroot()
-    dates = []
-    values = []
+    daily_usage = {}
+
     for record in root.findall("samp_eng_app_concurrent_usage"):
         date_str = record.find("usage_date").text
         value = int(record.find("concurrent_usage").text)
-        dates.append(datetime.strptime(date_str, "%Y-%m-%d"))  # Convert to datetime object
-        values.append(value)
+
+        # Aggregate usage for the same date
+        if date_str in daily_usage:
+            daily_usage[date_str] += value
+        else:
+            daily_usage[date_str] = value
+
+    # Sort dates and convert to lists
+    dates = [datetime.strptime(date, "%Y-%m-%d") for date in sorted(daily_usage.keys())]
+    values = [daily_usage[date.strftime("%Y-%m-%d")] for date in dates]
     return dates, values
 
 # Helper function to parse Denial XML
