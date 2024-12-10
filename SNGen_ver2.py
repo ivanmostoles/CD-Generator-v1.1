@@ -63,9 +63,7 @@ def generate_distinct_numbers_with_constraints(total_sum, max_gap=5):
     return tuple(numbers)
         
 # Function to generate a license XML record
-def generate_license_xml(discovery, quantity):
-    user = random.choice(USER_NAMES)
-    group = random.choice(GROUP_NAMES)
+def generate_license_record(discovery, quantity):
     license_server = random.choice(LICENSE_SERVER_VALUES)
     license_type = random.choice(LICENSE_TYPE_VALUES)
     
@@ -124,7 +122,7 @@ def generate_concurrent_record(record_data, discovery):
     return concurrent_usage
 
 # Extended function to generate denial records
-def generate_denial_record_extended(record_data, discovery, user, group, license_server, license_type):
+def generate_denial_record(record_data, discovery, user, group, license_server, license_type):
     denial = ET.Element("samp_eng_app_denial", action="INSERT_OR_UPDATE")
     ET.SubElement(denial, "additional_key")
     ET.SubElement(denial, "computer", display_value=user["computer_name"]).text = user["computer_sys_id"]
@@ -221,7 +219,7 @@ if generate_button:
                 license_server = random.choice(LICENSE_SERVER_VALUES)
                 license_type = random.choice(LICENSE_TYPE_VALUES)
 
-                denial_root.append(generate_denial_record_extended(
+                denial_root.append(generate_denial_record(
                     {"date": date_strings[i], "value": increment_value, "record_num": len(record_list) + 1},
                     discovery, user, group, license_server, license_type
                 ))
@@ -280,7 +278,7 @@ if generate_button:
     for i, qty in enumerate(license_quantities):
         if i < len(DISCOVERY_MODELS):
             discovery = DISCOVERY_MODELS[i]
-            license_record = generate_license_xml(discovery, qty)
+            license_record = generate_license_record(discovery, qty)
             license_root.append(license_record)
 
     # Convert XML trees to strings
