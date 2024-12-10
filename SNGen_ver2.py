@@ -1,11 +1,12 @@
 import streamlit as st
 import random
-from datetime import datetime, timedelta
-import xml.etree.ElementTree as ET
 import pandas as pd
 import hashlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from datetime import datetime, timedelta
+from lxml import etree as ET
+
 
 # Helper function to load data from CSV
 def load_data_from_csv(file_name):
@@ -17,11 +18,14 @@ def load_data_from_csv(file_name):
         return []
 
 # Load data from predefined CSV files
-DISCOVERY_MODELS = load_data_from_csv("discovery.csv")
-USER_NAMES = load_data_from_csv("user.csv")
-GROUP_NAMES = load_data_from_csv("group.csv")
-LICENSE_SERVER_VALUES = load_data_from_csv("license_server.csv")
-LICENSE_TYPE_VALUES = load_data_from_csv("license_type.csv")
+DISCOVERY_MODELS = pd.read_csv("discovery.csv", dtype=str).to_dict(orient="records")
+USER_NAMES = pd.read_csv("user.csv", dtype=str).to_dict(orient="records")
+GROUP_NAMES = pd.read_csv("group.csv", dtype=str).to_dict(orient="records")
+LICENSE_SERVER_VALUES = pd.read_csv("license_server.csv", dtype=str).to_dict(orient="records")
+LICENSE_TYPE_VALUES = pd.read_csv("license_type.csv", dtype=str).to_dict(orient="records")
+
+# Global Variable for Script date/time creation
+CURRENT_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # Ensure data is loaded
 if not DISCOVERY_MODELS:
@@ -44,15 +48,19 @@ def generate_distinct_numbers_with_constraints(total_sum, max_gap=5):
     if total_sum < 3:
         raise ValueError("The total sum must be at least 3 to generate three distinct numbers.")
     
-    while True:
-        num1 = random.randint(1, total_sum - 2)
-        num2 = random.randint(1, total_sum - num1 - 1)
-        num3 = total_sum - num1 - num2
-        numbers = [num1, num2, num3]
-        numbers.sort()
-        if (len(set(numbers)) == 3 and all(n > 0 for n in numbers) and 
-            numbers[2] - numbers[0] <= max_gap):
-            return tuple(numbers)
+     # Start with the smallest possible base values
+    base = total_sum // 3
+    remainder = total_sum % 3
+    
+    # Distribute the remainder to make the numbers distinct
+    numbers = [base, base + 1, base + 2] if remainder == 2 else [base, base, base + 1]
+    
+    # Adjust numbers to satisfy the max_gap constraint
+    while numbers[2] - numbers[0] > max_gap:
+        numbers[2] -= 1
+        numbers[0] += 1
+    
+    return tuple(numbers)
         
 # Function to generate a license XML record
 def generate_license_xml(discovery, quantity):
@@ -85,15 +93,15 @@ def generate_license_xml(discovery, quantity):
     ET.SubElement(license, "publisher").text = discovery["publisher"]
     ET.SubElement(license, "quantity").text = str(int(quantity))   #change
     ET.SubElement(license, "source").text = "OpeniT"
-    ET.SubElement(license, "start_date").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "start_date").text = CURRENT_TIME
     ET.SubElement(license, "sys_created_by").text = "admin"
-    ET.SubElement(license, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "sys_created_on").text = CURRENT_TIME
     ET.SubElement(license, "sys_domain").text = generate_unique_hash()
     ET.SubElement(license, "sys_domain_path").text = "/"
     ET.SubElement(license, "sys_id").text = generate_unique_hash()
     ET.SubElement(license, "sys_mod_count").text = str(random.randint(1, 100))
     ET.SubElement(license, "sys_updated_by").text = "admin"
-    ET.SubElement(license, "sys_updated_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(license, "sys_updated_on").text = CURRENT_TIME
     ET.SubElement(license, "version").text = version
     return license
 
@@ -105,13 +113,13 @@ def generate_concurrent_record(record_data, discovery):
     ET.SubElement(concurrent_usage, "license", display_value=discovery["norm_product"]).text = discovery["license_sys_id"]
     ET.SubElement(concurrent_usage, "source").text = "OpeniT"
     ET.SubElement(concurrent_usage, "sys_created_by").text = "admin"
-    ET.SubElement(concurrent_usage, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(concurrent_usage, "sys_created_on").text = CURRENT_TIME
     ET.SubElement(concurrent_usage, "sys_domain").text = generate_unique_hash()
     ET.SubElement(concurrent_usage, "sys_domain_path").text = "/"
     ET.SubElement(concurrent_usage, "sys_id").text = generate_unique_hash()
     ET.SubElement(concurrent_usage, "sys_mod_count").text = str(random.randint(1, 100))
     ET.SubElement(concurrent_usage, "sys_updated_by").text = "admin"
-    ET.SubElement(concurrent_usage, "sys_updated_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(concurrent_usage, "sys_updated_on").text = CURRENT_TIME
     ET.SubElement(concurrent_usage, "usage_date").text = record_data["date"]
     return concurrent_usage
 
@@ -134,18 +142,21 @@ def generate_denial_record_extended(record_data, discovery, user, group, license
     ET.SubElement(denial, "publisher").text = discovery["publisher"]
     ET.SubElement(denial, "source").text = "OpeniT"
     ET.SubElement(denial, "sys_created_by").text = "admin"
-    ET.SubElement(denial, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(denial, "sys_created_on").text = CURRENT_TIME
     ET.SubElement(denial, "sys_domain").text = generate_unique_hash()
     ET.SubElement(denial, "sys_domain_path").text = "/"
     ET.SubElement(denial, "sys_id").text = generate_unique_hash()
     ET.SubElement(denial, "sys_mod_count").text = str(random.randint(1, 100))
     ET.SubElement(denial, "sys_updated_by").text = "admin"
-    ET.SubElement(denial, "sys_updated_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ET.SubElement(denial, "sys_updated_on").text = CURRENT_TIME
     ET.SubElement(denial, "total_denial_count").text = str(record_data["value"])  # Use "value" as "total_denial_count"
     ET.SubElement(denial, "user", display_value=user["user"]).text = user["user_sys_id"]
     ET.SubElement(denial, "version").text = "2020"
     ET.SubElement(denial, "workstation", display_value=user["workstation"]).text = user["workstation_sys_id"]
     return denial
+
+def serialize_xml(root):
+    return ET.tostring(root, pretty_print=True, encoding="utf-8").decode("utf-8")
 
 # Streamlit app
 st.title("CD Generator")
@@ -165,17 +176,23 @@ if generate_button:
     end_date = date_range[1]
     total_days = (end_date - start_date).days + 1
 
+    # Precompute date strings for the entire range
+    date_strings = [
+        (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+        for i in range(total_days)
+    ]
+
     # Concurrent Records
     concurrent_root = ET.Element("unload")
-    concurrent_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    concurrent_root.set("unload_date", CURRENT_TIME)
 
     # Denial Records
     denial_root = ET.Element("unload")
-    denial_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    denial_root.set("unload_date", CURRENT_TIME)
 
     # License Records
     license_root = ET.Element("unload")
-    license_root.set("unload_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    license_root.set("unload_date", CURRENT_TIME)
 
     increment_value = quantity // num_records
     value = increment_value
@@ -183,11 +200,10 @@ if generate_button:
     phase = "increment"
     denial_generated = 0
 
-    for day_offset in range(total_days):
-        current_date = (start_date + timedelta(days=day_offset)).strftime("%Y-%m-%d")
+    for i, current_date in enumerate(date_strings):
 
         if phase == "increment":
-            record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
+            record_list.append({"record_num": i + 1, "value": value, "date": current_date})
             value += increment_value
             if value >= quantity:
                 value = quantity
@@ -206,11 +222,11 @@ if generate_button:
                 license_type = random.choice(LICENSE_TYPE_VALUES)
 
                 denial_root.append(generate_denial_record_extended(
-                    {"date": current_date, "value": increment_value, "record_num": len(record_list) + 1},
+                    {"date": date_strings[i], "value": increment_value, "record_num": len(record_list) + 1},
                     discovery, user, group, license_server, license_type
                 ))
 
-                record_list.append({"record_num": len(record_list) + 1, "value": quantity, "date": current_date})
+                record_list.append({"record_num": i + 1, "value": value, "date": current_date})
                 denial_generated += 1
 
                 if denial_generated >= denial_count:
@@ -221,7 +237,7 @@ if generate_button:
                     current_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
         elif phase == "decrement":
-            record_list.append({"record_num": len(record_list) + 1, "value": value, "date": current_date})
+            record_list.append({"record_num": i + 1, "value": value, "date": current_date})
             if value <= quantity / 2:
                 phase = "increment"
                 value += increment_value
@@ -268,9 +284,9 @@ if generate_button:
             license_root.append(license_record)
 
     # Convert XML trees to strings
-    license_xml_data = ET.tostring(license_root, encoding="utf-8").decode("utf-8")
-    concurrent_xml_data = ET.tostring(concurrent_root, encoding="utf-8").decode("utf-8")
-    denial_xml_data = ET.tostring(denial_root, encoding="utf-8").decode("utf-8")
+    license_xml_data = serialize_xml(license_root)
+    concurrent_xml_data = serialize_xml(concurrent_root)
+    denial_xml_data = serialize_xml(denial_root)
 
     st.session_state["concurrent_xml"] = concurrent_xml_data
     st.session_state["denial_xml"] = denial_xml_data
@@ -353,7 +369,6 @@ if "concurrent_xml" in st.session_state and "denial_xml" in st.session_state:
 # Display Concurrent XML
 if "concurrent_xml" in st.session_state:
     st.subheader("Concurrent XML")
-    st.code(st.session_state["concurrent_xml"], language="xml")
     st.download_button(
         label="Download Concurrent XML",
         data=st.session_state["concurrent_xml"],
@@ -364,7 +379,6 @@ if "concurrent_xml" in st.session_state:
 # Display Denial XML
 if "denial_xml" in st.session_state:
     st.subheader("Denial XML")
-    st.code(st.session_state["denial_xml"], language="xml")
     st.download_button(
         label="Download Denial XML",
         data=st.session_state["denial_xml"],
@@ -375,7 +389,6 @@ if "denial_xml" in st.session_state:
 # Display License XML
 if "license_xml" in st.session_state:
     st.subheader("License XML")
-    st.code(st.session_state["license_xml"], language="xml")
     st.download_button(
         label="Download License XML",
         data=st.session_state["license_xml"],
