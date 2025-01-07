@@ -44,7 +44,7 @@ def generate_concurrent_record(record_data, discovery):
     concurrent_usage = ET.Element("samp_eng_app_concurrent_usage", action="INSERT_OR_UPDATE")
     ET.SubElement(concurrent_usage, "conc_usage_id").text = f"Con Usage {record_data['record_num']}"
     ET.SubElement(concurrent_usage, "concurrent_usage").text = str(record_data["value"])
-    ET.SubElement(concurrent_usage, "license", display_value=discovery["norm_product"]).text = discovery["license_sys_id"]
+    ET.SubElement(concurrent_usage, "license", display_value=discovery["norm_product"]).text = discovery["license_sys_id2"]
     ET.SubElement(concurrent_usage, "source").text = "OpeniT"
     ET.SubElement(concurrent_usage, "sys_created_by").text = "admin"
     ET.SubElement(concurrent_usage, "sys_created_on").text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

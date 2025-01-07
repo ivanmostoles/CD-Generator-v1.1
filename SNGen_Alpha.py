@@ -111,7 +111,7 @@ def generate_concurrent_record(record_data, discovery):
     concurrent_usage = ET.Element("samp_eng_app_concurrent_usage", action="INSERT_OR_UPDATE")
     ET.SubElement(concurrent_usage, "conc_usage_id").text = f"Con Usage {record_data['record_num']}"
     ET.SubElement(concurrent_usage, "concurrent_usage").text = str(record_data["value"])
-    ET.SubElement(concurrent_usage, "license", display_value=discovery["norm_product"]).text = discovery["license_sys_id"]
+    ET.SubElement(concurrent_usage, "license", display_value=discovery["norm_product"]).text = discovery["license_sys_id2"]
     ET.SubElement(concurrent_usage, "source").text = "OpeniT"
     ET.SubElement(concurrent_usage, "sys_created_by").text = "admin"
     ET.SubElement(concurrent_usage, "sys_created_on").text = CURRENT_TIME
@@ -167,9 +167,9 @@ with st.sidebar:
     st.header("Input Parameters")
     date_range = st.date_input("Select Date Range", [datetime.today(), datetime.today()])
     quantity = st.number_input("Enter Quantity (Threshold/Peak Value)", min_value=1, step=1)
-    num_records = st.number_input("Enter Total Number of Records (Concurrent Usage)", min_value=1, step=1)
-    range_start = st.number_input("Overpeak Range Start", min_value=1, step=1)
-    range_end = st.number_input("Overpeak Range End", min_value=range_start, step=1)
+    num_records = st.number_input("Enter Total Number of Records (To Reach Peak)", min_value=1, step=1)
+    range_start = st.number_input("Denial Range Start", min_value=1, step=1)
+    range_end = st.number_input("Denial Range End", min_value=range_start, step=1)
     generate_button = st.button("Generate Records")
 
 # Generate Records
